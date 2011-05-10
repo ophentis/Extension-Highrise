@@ -133,10 +133,10 @@
 					(empty($_POST['casetype']) ? '' : $_POST['casetype']),
 					'casetype');
 			
-			//set "note"
+			//set "NOTE"
 			$fields .= sprintf('<%s type="%s">%s</%s>',
 					'note',
-					(empty($_POST['note']) ? 'missing' : 'valid'),
+					'valid',
 					(empty($_POST['note']) ? '' : $_POST['note']),
 					'note');
 			
@@ -146,16 +146,20 @@
 			
 			$response = null;
 			if( $push ) {
-				$result = $this->doPost($_POST);
+				$result = $this->doPush($_POST);
 			}
 			
 			$condition = null;
-			if(empty($response)) {
+			if(empty($result)) {
 				$condition = 'error';
 				$response = '<response />';
 			} else {
-				$condition = result['result'];
-				$response = result['response'];
+				$condition = $result['result'];
+				if($condition == 'ok') {
+					$response = $result['response'];
+				} else {
+					$response = '<message>'.$result['response'].'</message>';
+				}
 			}
 			
 			$result = sprintf('<%s result="%s">%s%s</%s>',self::ROOTELEMENT,$condition,$fields,$response,self::ROOTELEMENT);
@@ -163,48 +167,69 @@
 		}
 		
 		private function doPush($post) {
-			//check existance
 			$response = '';
 			
-			$id = $api->getContactId($post);
+			$url = 'https://1009design1.highrisehq.com';
+			$token = 'd3fc3b65ae74373d9bc22a15ff66a796';
+
+			$api = new Push_Highrise($url,$token);
 			
+			$id = $api->getContactId($post);
 			if($id === false) {
 				return array('result'=>'error','response'=>'can not connect to highrise.');
 			}
 			if($id=='-1') {
-				//echo 'not found';
 				$people = $api->pushContact($post);
 				if($people === false) {
 					return array('result'=>'error','response'=>'Failed to push contact to highrise.');
-				}
-				if( !preg_match("/(\<\?xml[\d\D]*\?\>)/i", $people) ) {
+				}else if( !preg_match('/(\<\?xml[\d\D]*\?\>)/i', $people) ) {
 					return array('result'=>'error','response'=>$people);
 				}
 				
 				$response .= substr($people,strpos($people,'<response>'));
 				$id = $api->getContactId($post);
 			}
-			//d($id);
 			
-			//push a case
-			$request = array(
-				'casename' => 'Request from "'.$post['casetype'].'"',
-			);
-			$kase = $api->pushCase($request);
-			
-			if($kase === false) {
+			$kases = $api->listCases();
+			if($kases === false) {
 				return array('result'=>'error','response'=>'Failed to push case to highrise.');
+			} else if( !preg_match('/(\<\?xml[\d\D]*\?\>)/i', $kases) ) {
+				return array('result'=>'error','response'=>$kases);
 			}
-			if( !preg_match("/(\<\?xml[\d\D]*\?\>)/i", $kase) ) {
-				return array('result'=>'error','response'=>$kase);
+			$kases = simplexml_load_string($kases);
+			
+			//if case not exists, create one
+			$casename = 'Request from "'.$post['casetype'].'"';
+			$caseId = false;
+			foreach($kases as $kase) {
+				if($kase->name == $casename) {
+					$caseId = $kase->id;
+				}
 			}
 			
-			$response .= substr($kase,strpos($kase,'<response>'));
-			$kase = simplexml_load_string($kase);
+			if( $caseId === false ) {
+				//push a case
+				$request = array(
+					'casename' => $casename
+				);
+				$kase = $api->pushCase($request);
+				
+				if($kase === false) {
+					return array('result'=>'error','response'=>'Failed to push case to highrise.');
+				} else if( !preg_match('/(\<\?xml[\d\D]*\?\>)/i', $kase) ) {
+					return array('result'=>'error','response'=>$kase);
+				}
+				
+				$response .= substr($kase,strpos($kase,'<kase>'));
+				$kase = simplexml_load_string($kase);
+				
+				$caseId = $kase->id;
+			}
+			
 			
 			//push a note
 			$request = array(
-				'id'=>$kase->id,
+				'id'=>$caseId,
 				'type'=>'Kase',
 				'note'=>'First Name: ' . $post['firstname'] . "\r\n"
 						.'Last Name: ' . $post['lastname'] . "\r\n"
@@ -214,14 +239,13 @@
 			
 			if($note === false) {
 				return array('result'=>'error','response'=>'Failed to push note to highrise.');
-			}
-			if( !preg_match("/(\<\?xml[\d\D]*\?\>)/i", $note) ) {
+			} else if( !preg_match('/(\<\?xml[\d\D]*\?\>)/i', $note) ) {
 				return array('result'=>'error','response'=>$note);
 			}
 			
-			$response .= substr($note,strpos($note,'<response>'));
+			$response .= substr($note,strpos($note,'<note>'));
 			
 			//everything is ok, return success
-			return array('result'=>'ok','response'=>$reponse);
+			return array('result'=>'ok','response'=>$response);
 		}
 	}
