@@ -28,7 +28,7 @@ class Push_Highrise{
 		$this->api_token = $token;
 	}
 	
-	public function getApiTOken() {
+	public function getApiToken() {
 		return $this->api_token;
 	}
 	
@@ -90,7 +90,6 @@ class Push_Highrise{
 	/**
 	 *	Create a new contact
 	 *	@return false if member exist
-	 * NOTE: Added some custom code that handles custom fields. April 14, 2013 - Adam Voliva
 	 */
 	public function pushContact($request, $custom='') {
 		$path = '/people.xml';
@@ -125,7 +124,6 @@ class Push_Highrise{
 			</contact-data>
 			'.$custom.'
 		</person>';
-		// $custom added by Adam Voliva on April 14, 2013 for custom HighRise fields
 		
 		$response = $this->_post($path,$content);
 		return $response;
@@ -133,7 +131,6 @@ class Push_Highrise{
 	
 
 	/**
-     * Added April 14th by Adam Voliva
      * Creates new custom fields in highrise
      */
 	public function pushCustom($custom=array())
@@ -154,7 +151,7 @@ class Push_Highrise{
 
 
 	/**
-     * Added April 14th by Adam Voliva
+     * Gets the id of a custom field
      * @return The id of the custom field passed.
      */
 	public function getCustomId($field, $page=1) {
@@ -209,7 +206,7 @@ class Push_Highrise{
 
 
 	/**
-     * Added April 14th by Adam Voliva
+	 * Creates the xml needed for custom fields
      * @return A string that contains the custom xml values to be submitted.
      */
 	public function createCustomXml($input=array(), $custom=array())
@@ -231,7 +228,6 @@ class Push_Highrise{
     }
 
     /**
-     * Added April 14th by Adam Voliva
      * Pass a key value with the value being the name 
      * 	custom field you want to create in highrise.
      */
