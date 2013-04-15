@@ -90,8 +90,9 @@ class Push_Highrise{
 	/**
 	 *	Create a new contact
 	 *	@return false if member exist
+	 * NOTE: Added some custom code that handles custom fields. April 14, 2013 - Adam Voliva
 	 */
-	public function pushContact($request) {
+	public function pushContact($request, $custom='') {
 		$path = '/people.xml';
 		$content = '<person>
 			<first-name>'.@htmlspecialchars($request['firstname']).'</first-name>
@@ -102,13 +103,13 @@ class Push_Highrise{
 				<email-addresses>
 					<email-address>
 						<address>'.@htmlspecialchars($request['email']).'</address>
-						<location>Work</location>
+						<location>'.@htmlspecialchars($request['email_location']).'</location>
 					</email-address>
 				</email-addresses>
 			<phone-numbers>
 				<phone-number>
 					<number>'.@htmlspecialchars($request['phone']).'</number>
-					<location>Work</location>
+					<location>'.@htmlspecialchars($request['phone_location']).'</location>
 				</phone-number>
 			</phone-numbers>
 			<addresses>
@@ -122,12 +123,64 @@ class Push_Highrise{
 				</address>
 			  </addresses>
 			</contact-data>
+			'.$custom.'
 		</person>';
+		// $custom added by Adam Voliva on April 14, 2013 for custom HighRise fields
 		
 		$response = $this->_post($path,$content);
 		return $response;
 	}
 	
+
+	/**
+     * Added April 14th by Adam Voliva
+     * Creates new custom fields in highrise
+     */
+	public function pushCustom($custom=array())
+	{
+		$path = '/subject_fields.xml';
+		foreach ($custom as $v)
+		{			
+			$content = '<subject-field>
+				<label>'.@htmlspecialchars($v).'</label>
+				</subject-field>
+				';
+			// this is pretty bad
+			// the api doens't let you submit a batch of custom fields
+			// so i'm stuck doing one at a time. hope for no errors!
+			$response = $this->_post($path, $content);
+		}
+	}
+
+
+	/**
+     * Added April 14th by Adam Voliva
+     * @return The id of the custom field passed.
+     */
+	public function getCustomId($field, $page=1) {
+		$path = '/subject_fields.xml';
+
+		$query = array('n'=>($page-1)*25);
+		
+		$xml = $this->_get($path,$query);
+		
+		if(!$xml) {
+			return false;
+		}
+		
+		// parse XML
+		$people = simplexml_load_string($xml);
+		
+
+		foreach ($people->{'subject-field'} as $label)
+		{
+			// If there is a match return the id of the custom field
+			if ($field == $label->label) 
+				return $label->id;
+		}
+		return false;
+	}
+
 	/**
 	 *	Search for a person in Highrise
 	 *	Change this function if using more or less check
@@ -153,6 +206,44 @@ class Push_Highrise{
 		$id = ($people && isset($people->person[0])) ? $id = $people->person[0]->id : '-1';
 		return $id;
 	}
+
+
+	/**
+     * Added April 14th by Adam Voliva
+     * @return A string that contains the custom xml values to be submitted.
+     */
+	public function createCustomXml($input=array(), $custom=array())
+    {
+        $customXml = '<subject_datas type="array">';
+        foreach ($input as $k => $v)
+        {
+            if (array_key_exists($k, $custom) && !empty($v))
+            {
+                $customXml .= '<subject_data>
+                      <value>'.@htmlspecialchars($v).'</value>
+                      <subject_field_id type="integer">'.@htmlspecialchars($this->getCustomId($custom[$k])).'</subject_field_id>
+                    </subject_data>
+                    ';
+            }
+        }
+        $customXml .= '</subject_datas>';
+        return $customXml;
+    }
+
+    /**
+     * Added April 14th by Adam Voliva
+     * Pass a key value with the value being the name 
+     * 	custom field you want to create in highrise.
+     */
+    public function createCustomFields($custom)
+    {
+    	$fields = array();
+		foreach ($custom as $k => $v)
+		{
+		    array_push($fields, $v);
+		}
+		$this->pushCustom($fields);
+    }
 	
 	/**
 	 *	http://developer.37signals.com/highrise/people
